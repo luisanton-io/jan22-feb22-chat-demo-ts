@@ -9,6 +9,7 @@ import {
 } from 'react-bootstrap'
 import { io } from 'socket.io-client'
 import { User } from '../typings/User'
+import { Message } from '../typings/Message'
 
 // 1) establishing a connection
 // 2) logging in sending our username and receiving confermation from the server ('loggedin')
@@ -27,6 +28,8 @@ const Home = () => {
   const [inputUserName, setInputUserName] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
   const [onlineUsers, setOnlineUsers] = useState<User[]>([])
+  const [newMessage, setNewMessage] = useState('')
+  const [chatHistory, setChatHistory] = useState<Message[]>([])
 
   // event listeners have to be set up JUST ONCE
   useEffect(
@@ -51,9 +54,21 @@ const Home = () => {
           console.log('a new client just connected!')
           getOnlineUsers()
         })
+        socket.on('message', (messageFromAnotherClient: Message) => {
+          // this is for a connected client who receives a message from another user!
+          // let's retrieve the message from the event and append it to chatHistory
+          // setChatHistory([...chatHistory, messageFromAnotherClient]) // <-- this is a buggy line of code.
+          // because this socket.on event listener is set-up just ONCE, in the beginning of the lifecycle,
+          // chatHistory is NEVER re-evaluated! we need to evaluate chatHistory BEFORE appending our new message
+          setChatHistory((currentChatHistory) => [
+            ...currentChatHistory,
+            messageFromAnotherClient,
+          ]) // <-- this is a buggy line of code.
+        })
         // newConnection works, but this should be enabled JUST when a user has already logged in!
       })
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       // empty pair of brackets here because ALL my event listeners have to be set up
       // just once!
@@ -68,6 +83,28 @@ const Home = () => {
     })
     // the server code is already set up to listen for a 'setUsername' event
     // and grab the username property out of its payload
+  }
+
+  const handleMessageSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    console.log("let's send the message!")
+    // let's send our message to the server through an event of type 'sendmessage'
+    // how is a message looking like?
+    const messageToSend: Message = {
+      text: newMessage,
+      sender: inputUserName,
+      timestamp: Date.now(),
+      id: socket.id,
+    }
+
+    socket.emit('sendmessage', messageToSend)
+    // let's empty the input field
+    setNewMessage('')
+    // me, the sender of the message, doesn't need to receive the message from the server!
+    // so I'll just append it to the end of my own chatHistory
+    // all the other connected clients, they are going to receive the message
+    // from the server
+    setChatHistory([...chatHistory, messageToSend])
   }
 
   const getOnlineUsers = async () => {
@@ -101,15 +138,27 @@ const Home = () => {
           </Form>
           {/* MIDDLE SECTION: CHAT HISTORY */}
           <ListGroup>
-            <ListGroup.Item>Blablabla</ListGroup.Item>
-            <ListGroup.Item>Blablabla</ListGroup.Item>
-            <ListGroup.Item>Blablabla</ListGroup.Item>
+            {chatHistory.map((m, i) => (
+              <ListGroup.Item
+                key={i}
+                style={{
+                  color: 'white',
+                  backgroundColor:
+                    m.sender === inputUserName ? 'green' : 'cyan',
+                }}
+              >
+                {m.sender} - {m.text} |{' '}
+                {new Date(m.timestamp).toLocaleTimeString('en-US')}
+              </ListGroup.Item>
+            ))}
           </ListGroup>
           {/* BOTTOM SECTION: NEW MESSAGE INPUT FIELD */}
-          <Form>
+          <Form onSubmit={handleMessageSubmit}>
             <FormControl
               placeholder="Write a message here!"
               disabled={!loggedIn}
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
             />
           </Form>
         </Col>
