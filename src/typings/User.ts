@@ -1,4 +1,5 @@
 export interface User {
   username: string
-  id: string
+  socketId: string
+  room: "blue" | "red"
 }

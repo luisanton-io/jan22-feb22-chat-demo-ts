@@ -6,6 +6,7 @@ import {
   Form,
   FormControl,
   ListGroup,
+  Button,
 } from 'react-bootstrap'
 import { io } from 'socket.io-client'
 import { User } from '../typings/User'
@@ -30,6 +31,13 @@ const Home = () => {
   const [onlineUsers, setOnlineUsers] = useState<User[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [chatHistory, setChatHistory] = useState<Message[]>([])
+  const [room, setRoom] = useState<"blue" | "red">('blue')
+
+  const getChatHistory = async () => {
+    const response = await fetch(ADDRESS + '/rooms/' + room)
+    const data = await response.json()
+    setChatHistory(data)
+  }
 
   // event listeners have to be set up JUST ONCE
   useEffect(
@@ -46,7 +54,7 @@ const Home = () => {
           "the username has been sent successfully and now you're logged in!"
         )
         setLoggedIn(true)
-        getOnlineUsers()
+        getOnlineUsers()        
         // newConnection is an event sent automatically from the server
         // to all the clients that are ALREADY loggedin when a new user
         // logs in on its own
@@ -75,11 +83,24 @@ const Home = () => {
     ]
   )
 
+  useEffect(() => {
+    //let's retrieve this rooms previous chat history from the server
+
+    console.log("Room changed. Now it is ", room)
+    socket.on('loggedin', getChatHistory)
+
+    return () => {
+      console.log("Room changing. It was ", room)
+      socket.off('loggedin', getChatHistory)
+    }
+  }, [room])
+
   const sendUsername = (e: FormEvent) => {
     e.preventDefault()
     // now we're about to emit an event to the server, carrying our username
     socket.emit('setUsername', {
       username: inputUserName,
+      room
     })
     // the server code is already set up to listen for a 'setUsername' event
     // and grab the username property out of its payload
@@ -94,10 +115,10 @@ const Home = () => {
       text: newMessage,
       sender: inputUserName,
       timestamp: Date.now(),
-      id: socket.id,
+      id: socket.id
     }
 
-    socket.emit('sendmessage', messageToSend)
+    socket.emit('sendmessage', {message: messageToSend, room})
     // let's empty the input field
     setNewMessage('')
     // me, the sender of the message, doesn't need to receive the message from the server!
@@ -122,19 +143,31 @@ const Home = () => {
     }
   }
 
+  const toggleRoom = () => {
+    setRoom(room => room === "blue" ? "red" : "blue")
+  }
+
   return (
     <Container fluid className="px-4 my-3">
       <Row style={{ height: '95vh' }}>
         {/* MAIN COLUMN */}
         <Col md={10} className="d-flex flex-column justify-content-between">
           {/* TOP SECTION: USERNAME INPUT FIELD */}
-          <Form onSubmit={sendUsername}>
+          <Form onSubmit={sendUsername} className="d-flex">
             <FormControl
               value={inputUserName}
               onChange={(e) => setInputUserName(e.target.value)}
               placeholder="Insert your username here..."
               disabled={loggedIn}
             />
+            <Button
+            className="ml-2"
+            variant={
+              room === "blue" ? "primary" : "danger"
+            }
+             onClick={toggleRoom}>
+              Room
+            </Button>
           </Form>
           {/* MIDDLE SECTION: CHAT HISTORY */}
           <ListGroup>
@@ -144,7 +177,7 @@ const Home = () => {
                 style={{
                   color: 'white',
                   backgroundColor:
-                    m.sender === inputUserName ? 'green' : 'cyan',
+                    m.sender === inputUserName ? 'green' : 'blue',
                 }}
               >
                 {m.sender} - {m.text} |{' '}
@@ -166,8 +199,10 @@ const Home = () => {
         <Col md={2} style={{ borderLeft: '1px solid black' }}>
           <div className="mb-3">CONNECTED USERS:</div>
           <ListGroup>
-            {onlineUsers.map((user) => (
-              <ListGroup.Item key={user.id}>{user.username}</ListGroup.Item>
+            {onlineUsers
+            .filter(u => u.room === room)
+            .map((user) => (
+              <ListGroup.Item key={user.socketId}>{user.username}</ListGroup.Item>
             ))}
           </ListGroup>
         </Col>
