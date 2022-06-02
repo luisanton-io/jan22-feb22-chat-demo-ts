@@ -17,7 +17,12 @@ import { Message } from '../typings/Message'
 // 3) partecipate to the conversation sending messages
 
 const ADDRESS = 'http://localhost:3030'
-const socket = io(ADDRESS, { transports: ['websocket'] })
+const socket = io(ADDRESS, { 
+    transports: ['websocket'], 
+    auth: { 
+      token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2Mjk4ODY3MWZhYjE1ZWRiYjc5MTAxY2EiLCJtaWNrZXlNb3VzZSI6dHJ1ZSwiaWF0IjoxNjU0MTYzMDU5LCJleHAiOjE2NTQ3Njc4NTl9.jXeWwWSyd7_9n4lU7PTa5v0osF1EpXU-IIDY3yQAZoc"
+    }
+})
 // socket is a REFERENCE to the established connection
 
 const Home = () => {
